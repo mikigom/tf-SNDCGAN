@@ -26,20 +26,20 @@ sess = tf.InteractiveSession()
 tf.global_variables_initializer().run()
 update_ops = tf.get_collection(SPECTRAL_NORM_UPDATE_OPS)
 for _ in range(1000):
-  start = timeit.default_timer()
-  batch_xs, batch_ys = mnist.train.next_batch(100)
-  sess.run(train_step, feed_dict={x: batch_xs, y_: batch_ys})
-  sigma_, s_, s_bar_ = sess.run([sigma, s, s_bar])
-  # TESTING:
-  # Check for s_[0] (largest singular value) - sigma
-  # They are very close. Difference mostly around less than 5%
-  # Also, svd of W_bar is close to 1
-  # So I assume my implementation of singular value power iteration approximation is correct
-  for update_op in update_ops:
-    sess.run(update_op)
-  stop = timeit.default_timer()
-  print('Iteration:', _, '\tW max SVD: ', s_[0], '\tW max SVD approx: ', sigma_, '\tPercentage difference: ',
-        abs(s_[0] - sigma_) / s_[0] * 100, '\tW_bar max SVD: ', s_bar_[0], '\tTime: ', stop - start)
+    start = timeit.default_timer()
+    batch_xs, batch_ys = mnist.train.next_batch(100)
+    sess.run(train_step, feed_dict={x: batch_xs, y_: batch_ys})
+    sigma_, s_, s_bar_ = sess.run([sigma, s, s_bar])
+    # TESTING:
+    # Check for s_[0] (largest singular value) - sigma
+    # They are very close. Difference mostly around less than 5%
+    # Also, svd of W_bar is close to 1
+    # So I assume my implementation of singular value power iteration approximation is correct
+    for update_op in update_ops:
+        sess.run(update_op)
+    stop = timeit.default_timer()
+    print('Iteration:', _, '\tW max SVD: ', s_[0], '\tW max SVD approx: ', sigma_, '\tPercentage difference: ',
+          abs(s_[0] - sigma_) / s_[0] * 100, '\tW_bar max SVD: ', s_bar_[0], '\tTime: ', stop - start)
 correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_, 1))
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 print(sess.run(accuracy, feed_dict={x: mnist.test.images, y_: mnist.test.labels}))

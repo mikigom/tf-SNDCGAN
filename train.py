@@ -61,7 +61,7 @@ sess = tf.Session(config=config)
 sess.run(tf.global_variables_initializer())
 saver = tf.train.Saver()
 if tf.train.latest_checkpoint('snapshots') is not None:
-  saver.restore(sess, tf.train.latest_checkpoint('snapshots'))
+    saver.restore(sess, tf.train.latest_checkpoint('snapshots'))
 
 np.random.seed(1337)
 sample_noise = generator.generate_noise()
@@ -72,45 +72,45 @@ start = timeit.default_timer()
 is_start_iteration = True
 inception_scores = []
 while iteration < FLAGS.max_iter:
-  _, g_loss_curr = sess.run([g_solver, g_loss], feed_dict={z: generator.generate_noise(), is_training: True})
-  for _ in range(FLAGS.n_dis):
-    _, d_loss_curr, summaries = sess.run([d_solver, d_loss, merged_summary_op],
-                                         feed_dict={x: data_set.get_next_batch(), z: generator.generate_noise(), is_training: True})
-  # increase global step after updating G and D
-  # before saving the model so that it will be written into the ckpt file
-  sess.run(increase_global_step)
-  if (iteration + 1) % FLAGS.display_interval == 0 and not is_start_iteration:
-    summary_writer.add_summary(summaries, global_step=iteration)
-    stop = timeit.default_timer()
-    print('Iter {}: d_loss = {:4f}, g_loss = {:4f}, time = {:2f}s'.format(iteration, d_loss_curr, g_loss_curr, stop - start))
-    start = stop
-  if (iteration + 1) % FLAGS.snapshot_interval == 0 and not is_start_iteration:
-    saver.save(sess, 'snapshots/model.ckpt', global_step=iteration)
-    sample_images = sess.run(x_hat, feed_dict={z: sample_noise, is_training: False})
-    save_images(sample_images, 'tmp/{:06d}.png'.format(iteration))
-  if (iteration + 1) % FLAGS.evaluation_interval == 0:
-    sample_images = sess.run(x_hat, feed_dict={z: sample_noise, is_training: False})
-    save_images(sample_images, 'tmp/{:06d}.png'.format(iteration))
-    # Sample 50000 images for evaluation
-    print("Evaluating...")
-    num_images_to_eval = 50000
-    eval_images = []
-    num_batches = num_images_to_eval // FLAGS.batch_size + 1
-    print("Calculating Inception Score. Sampling {} images...".format(num_images_to_eval))
-    np.random.seed(0)
-    for _ in range(num_batches):
-      images = sess.run(x_hat, feed_dict={z: generator.generate_noise(), is_training: False})
-      eval_images.append(images)
-    np.random.seed()
-    eval_images = np.vstack(eval_images)
-    eval_images = eval_images[:num_images_to_eval]
-    eval_images = np.clip((eval_images + 1.0) * 127.5, 0.0, 255.0).astype(np.uint8)
-    # Calc Inception score
-    eval_images = list(eval_images)
-    inception_score_mean, inception_score_std = get_inception_score(eval_images)
-    print("Inception Score: Mean = {} \tStd = {}.".format(inception_score_mean, inception_score_std))
-    inception_scores.append(dict(mean=inception_score_mean, std=inception_score_std))
-    with open(INCEPTION_FILENAME, 'wb') as f:
-      pickle.dump(inception_scores, f)
-  iteration += 1
-  is_start_iteration = False
+    _, g_loss_curr = sess.run([g_solver, g_loss], feed_dict={z: generator.generate_noise(), is_training: True})
+    for _ in range(FLAGS.n_dis):
+        _, d_loss_curr, summaries = sess.run([d_solver, d_loss, merged_summary_op],
+                                             feed_dict={x: data_set.get_next_batch(), z: generator.generate_noise(), is_training: True})
+    # increase global step after updating G and D
+    # before saving the model so that it will be written into the ckpt file
+    sess.run(increase_global_step)
+    if (iteration + 1) % FLAGS.display_interval == 0 and not is_start_iteration:
+        summary_writer.add_summary(summaries, global_step=iteration)
+        stop = timeit.default_timer()
+        print('Iter {}: d_loss = {:4f}, g_loss = {:4f}, time = {:2f}s'.format(iteration, d_loss_curr, g_loss_curr, stop - start))
+        start = stop
+    if (iteration + 1) % FLAGS.snapshot_interval == 0 and not is_start_iteration:
+        saver.save(sess, 'snapshots/model.ckpt', global_step=iteration)
+        sample_images = sess.run(x_hat, feed_dict={z: sample_noise, is_training: False})
+        save_images(sample_images, 'tmp/{:06d}.png'.format(iteration))
+    if (iteration + 1) % FLAGS.evaluation_interval == 0:
+        sample_images = sess.run(x_hat, feed_dict={z: sample_noise, is_training: False})
+        save_images(sample_images, 'tmp/{:06d}.png'.format(iteration))
+        # Sample 50000 images for evaluation
+        print("Evaluating...")
+        num_images_to_eval = 50000
+        eval_images = []
+        num_batches = num_images_to_eval // FLAGS.batch_size + 1
+        print("Calculating Inception Score. Sampling {} images...".format(num_images_to_eval))
+        np.random.seed(0)
+        for _ in range(num_batches):
+            images = sess.run(x_hat, feed_dict={z: generator.generate_noise(), is_training: False})
+            eval_images.append(images)
+        np.random.seed()
+        eval_images = np.vstack(eval_images)
+        eval_images = eval_images[:num_images_to_eval]
+        eval_images = np.clip((eval_images + 1.0) * 127.5, 0.0, 255.0).astype(np.uint8)
+        # Calc Inception score
+        eval_images = list(eval_images)
+        inception_score_mean, inception_score_std = get_inception_score(eval_images)
+        print("Inception Score: Mean = {} \tStd = {}.".format(inception_score_mean, inception_score_std))
+        inception_scores.append(dict(mean=inception_score_mean, std=inception_score_std))
+        with open(INCEPTION_FILENAME, 'wb') as f:
+            pickle.dump(inception_scores, f)
+    iteration += 1
+    is_start_iteration = False
