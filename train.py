@@ -24,7 +24,7 @@ flags.DEFINE_integer('n_dis', 1, 'n discrminator train')
 mkdir('tmp')
 
 INCEPTION_FILENAME = 'inception_score.pkl'
-config = FLAGS.__flags
+config = FLAGS.flag_values_dict()
 generator = DCGANGenerator(**config)
 discriminator = SNDCGAN_Discrminator(**config)
 data_set = Cifar10(batch_size=FLAGS.batch_size)
