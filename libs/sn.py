@@ -45,7 +45,7 @@ def spectral_normed_weight(W, u=None, num_iters=1, update_collection=None, with_
         if update_collection != NO_OPS:
             tf.add_to_collection(update_collection, u.assign(u_final))
 
-    partial_l2 = tf.nn.l2_loss(tf.sqrt(tf.reduce_sum(W_bar ** 2)) - tf.abs(sigma))
+    partial_l2 = tf.nn.l2_loss(tf.sqrt(tf.reduce_sum(W_bar ** 2)) - 1.)
     tf.add_to_collection('partialL2', partial_l2)
     if with_sigma:
         return W_bar, sigma

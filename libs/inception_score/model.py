@@ -17,6 +17,7 @@ import sys
 
 MODEL_DIR = '/tmp/imagenet'
 DATA_URL = 'http://download.tensorflow.org/models/image/imagenet/inception-2015-12-05.tgz'
+actviation_before_softmax = None
 softmax = None
 
 # Call this function with list of images. Each of elements should be a
@@ -34,26 +35,30 @@ def get_inception_score(images, splits=10):
     bs = 100
     with tf.Session() as sess:
         preds = []
+        activations = []
         n_batches = int(math.ceil(float(len(inps)) / float(bs)))
         for i in range(n_batches):
             sys.stdout.write(".")
             sys.stdout.flush()
             inp = inps[(i * bs):min((i + 1) * bs, len(inps))]
             inp = np.concatenate(inp, 0)
-            pred = sess.run(softmax, {'ExpandDims:0': inp})
+            pred, activation = sess.run([softmax, actviation_before_softmax], {'ExpandDims:0': inp})
             preds.append(pred)
+            activations.append(activation)
         preds = np.concatenate(preds, 0)
+        activations = np.concatenate(activations, 0)
         scores = []
         for i in range(splits):
             part = preds[(i * preds.shape[0] // splits):((i + 1) * preds.shape[0] // splits), :]
             kl = part * (np.log(part) - np.log(np.expand_dims(np.mean(part, 0), 0)))
             kl = np.mean(np.sum(kl, 1))
             scores.append(np.exp(kl))
-        return np.mean(scores), np.std(scores)
+        return np.mean(scores), np.std(scores), activations
 
 # This function is called automatically.
 def _init_inception():
     global softmax
+    global actviation_before_softmax
     if not os.path.exists(MODEL_DIR):
         os.makedirs(MODEL_DIR)
     filename = DATA_URL.split('/')[-1]
@@ -90,6 +95,7 @@ def _init_inception():
                 o.__dict__['_shape_val'] = tf.TensorShape(new_shape)
         w = sess.graph.get_operation_by_name("softmax/logits/MatMul").inputs[1]
         logits = tf.matmul(tf.squeeze(pool3), w)
+        actviation_before_softmax = logits
         softmax = tf.nn.softmax(logits)
 
 if softmax is None:

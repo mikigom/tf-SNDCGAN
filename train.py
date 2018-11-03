@@ -3,6 +3,7 @@ import timeit
 import numpy as np
 import tensorflow as tf
 
+from libs.fid import calculate_activation_statistics, calculate_frechet_distance
 from libs.input_helper import Cifar10
 from libs.utils import save_images, mkdir
 from net import DCGANGenerator, SNDCGAN_Discrminator
@@ -17,13 +18,14 @@ flags.DEFINE_integer('snapshot_interval', 1000, 'interval of snapshot')
 flags.DEFINE_integer('evaluation_interval', 10000, 'interval of evalution')
 flags.DEFINE_integer('display_interval', 100, 'interval of displaying log to console')
 flags.DEFINE_float('adam_alpha', 0.0001, 'learning rate')
-flags.DEFINE_float('adam_beta1', 0.5, 'beta1 in Adam')
-flags.DEFINE_float('adam_beta2', 0.999, 'beta2 in Adam')
+flags.DEFINE_float('adam_beta1', 0.0, 'beta1 in Adam')
+flags.DEFINE_float('adam_beta2', 0.9, 'beta2 in Adam')
 flags.DEFINE_integer('n_dis', 1, 'n discrminator train')
 
 mkdir('tmp')
 
 INCEPTION_FILENAME = 'inception_score.pkl'
+FID_FILENAME = 'FID_score.pkl'
 config = FLAGS.flag_values_dict()
 generator = DCGANGenerator(**config)
 discriminator = SNDCGAN_Discrminator(**config)
@@ -41,8 +43,8 @@ d_fake = discriminator(x_hat, update_collection=None)
 d_real = discriminator(x, update_collection="NO_OPS")
 # Softplus at the end as in the official code of author at chainer-gan-lib github repository
 # d_loss = tf.reduce_mean(tf.nn.softplus(d_fake) + tf.nn.softplus(-d_real)) + 1e-3 * tf.reduce_mean(tf.get_collection('partialL2'))
-d_loss = tf.reduce_mean(tf.nn.softplus(d_fake) + tf.nn.softplus(-d_real))
-g_loss = tf.reduce_mean(tf.nn.softplus(-d_fake))
+d_loss = tf.reduce_mean(tf.nn.relu(1.0 - d_real)) + tf.reduce_mean(tf.nn.relu(1.0 + d_fake))
+g_loss = -tf.reduce_mean(d_fake)
 d_loss_summary_op = tf.summary.scalar('d_loss', d_loss)
 g_loss_summary_op = tf.summary.scalar('g_loss', g_loss)
 merged_summary_op = tf.summary.merge_all()
@@ -50,11 +52,12 @@ summary_writer = tf.summary.FileWriter('snapshots')
 
 d_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='critic')
 g_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='generator')
-optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.adam_alpha, beta1=FLAGS.adam_beta1, beta2=FLAGS.adam_beta2)
-d_gvs = optimizer.compute_gradients(d_loss, var_list=d_vars)
-g_gvs = optimizer.compute_gradients(g_loss, var_list=g_vars)
-d_solver = optimizer.apply_gradients(d_gvs)
-g_solver = optimizer.apply_gradients(g_gvs)
+d_optimizer = tf.train.AdamOptimizer(learning_rate=2.*FLAGS.adam_alpha, beta1=FLAGS.adam_beta1, beta2=FLAGS.adam_beta2)
+g_optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.adam_alpha, beta1=FLAGS.adam_beta1, beta2=FLAGS.adam_beta2)
+d_gvs = d_optimizer.compute_gradients(d_loss, var_list=d_vars)
+g_gvs = g_optimizer.compute_gradients(g_loss, var_list=g_vars)
+d_solver = d_optimizer.apply_gradients(d_gvs)
+g_solver = g_optimizer.apply_gradients(g_gvs)
 
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
@@ -72,6 +75,7 @@ start = timeit.default_timer()
 
 is_start_iteration = True
 inception_scores = []
+fid_scores = []
 while iteration < FLAGS.max_iter:
     _, g_loss_curr = sess.run([g_solver, g_loss], feed_dict={z: generator.generate_noise(), is_training: True})
     for _ in range(FLAGS.n_dis):
@@ -108,10 +112,29 @@ while iteration < FLAGS.max_iter:
         eval_images = np.clip((eval_images + 1.0) * 127.5, 0.0, 255.0).astype(np.uint8)
         # Calc Inception score
         eval_images = list(eval_images)
-        inception_score_mean, inception_score_std = get_inception_score(eval_images)
+        inception_score_mean, inception_score_std, generated_images_activation = get_inception_score(eval_images)
         print("Inception Score: Mean = {} \tStd = {}.".format(inception_score_mean, inception_score_std))
         inception_scores.append(dict(mean=inception_score_mean, std=inception_score_std))
         with open(INCEPTION_FILENAME, 'wb') as f:
             pickle.dump(inception_scores, f)
+
+        true_images = []
+        for _ in range(num_batches):
+            true_images.append(data_set.get_next_batch())
+        true_images = np.vstack(true_images)
+        true_images = true_images[:num_images_to_eval]
+        true_images = np.clip((true_images + 1.0) * 127.5, 0.0, 255.0).astype(np.uint8)
+        true_images = list(true_images)
+        true_inception_score_mean, true_inception_score_std, true_images_activation = get_inception_score(true_images)
+        print("True Image Inception Score: Mean = {} \tStd = {}.".format(true_inception_score_mean, true_inception_score_std))
+
+        true_mu, true_sigma = calculate_activation_statistics(true_images_activation)
+        generated_mu, generated_sigma = calculate_activation_statistics(generated_images_activation)
+        fid_score = calculate_frechet_distance(true_mu, true_sigma, generated_mu, generated_sigma)
+        print("FID Score: {}".format(fid_score))
+        fid_scores.append(dict(fid=fid_score))
+        with open(FID_FILENAME, 'wb') as f:
+            pickle.dump(fid_scores, f)
+
     iteration += 1
     is_start_iteration = False
