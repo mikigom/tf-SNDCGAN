@@ -1,6 +1,7 @@
 from keras.datasets import cifar10
 import numpy as np
 
+
 class Cifar10(object):
     def __init__(self, batch_size=64, test=False):
         (x_train, y_train), (x_test, y_test) = cifar10.load_data()

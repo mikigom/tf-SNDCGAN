@@ -40,6 +40,7 @@ d_fake = discriminator(x_hat, update_collection=None)
 # Don't need to collect on the second call, put NO_OPS
 d_real = discriminator(x, update_collection="NO_OPS")
 # Softplus at the end as in the official code of author at chainer-gan-lib github repository
+# d_loss = tf.reduce_mean(tf.nn.softplus(d_fake) + tf.nn.softplus(-d_real)) + 1e-3 * tf.reduce_mean(tf.get_collection('partialL2'))
 d_loss = tf.reduce_mean(tf.nn.softplus(d_fake) + tf.nn.softplus(-d_real))
 g_loss = tf.reduce_mean(tf.nn.softplus(-d_fake))
 d_loss_summary_op = tf.summary.scalar('d_loss', d_loss)

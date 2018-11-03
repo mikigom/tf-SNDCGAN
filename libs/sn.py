@@ -15,10 +15,12 @@ def spectral_normed_weight(W, u=None, num_iters=1, update_collection=None, with_
     W_reshaped = tf.reshape(W, [-1, W_shape[-1]])
     if u is None:
         u = tf.get_variable("u", [1, W_shape[-1]], initializer=tf.truncated_normal_initializer(), trainable=False)
+
     def power_iteration(i, u_i, v_i):
         v_ip1 = _l2normalize(tf.matmul(u_i, tf.transpose(W_reshaped)))
         u_ip1 = _l2normalize(tf.matmul(v_ip1, W_reshaped))
         return i + 1, u_ip1, v_ip1
+
     _, u_final, v_final = tf.while_loop(
         cond=lambda i, _1, _2: i < num_iters,
         body=power_iteration,
@@ -42,6 +44,9 @@ def spectral_normed_weight(W, u=None, num_iters=1, update_collection=None, with_
         # has already been collected on the first call.
         if update_collection != NO_OPS:
             tf.add_to_collection(update_collection, u.assign(u_final))
+
+    partial_l2 = tf.nn.l2_loss(tf.sqrt(tf.reduce_sum(W_bar ** 2)) - tf.abs(sigma))
+    tf.add_to_collection('partialL2', partial_l2)
     if with_sigma:
         return W_bar, sigma
     else:
