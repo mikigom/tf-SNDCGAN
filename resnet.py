@@ -9,7 +9,7 @@ def downsample(value):
     return tf.layers.average_pooling2d(value, (2, 2), (2, 2), padding='SAME')
 
 
-class DCGANGenerator(object):
+class ResNetGenerator(object):
     def __init__(self, hidden_dim=128, batch_size=64, hidden_activation=tf.nn.relu, output_activation=tf.nn.tanh, use_batch_norm=True, z_distribution='normal', scope='generator', **kwargs):
         self.hidden_dim = hidden_dim
         self.batch_size = batch_size
@@ -61,8 +61,7 @@ class DCGANGenerator(object):
             raise NotImplementedError
 
 
-class SNDCGAN_Discrminator(object):
-
+class ResNetDiscrminator(object):
     def __init__(self, batch_size=64, hidden_activation=lrelu, output_dim=1, scope='critic', **kwargs):
         self.batch_size = batch_size
         self.hidden_activation = hidden_activation

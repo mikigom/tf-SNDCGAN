@@ -9,6 +9,7 @@ from libs.utils import save_images, mkdir
 from net import DCGANGenerator, SNDCGAN_Discrminator
 import _pickle as pickle
 from libs.inception_score.model import get_inception_score
+from resnet import ResNetGenerator, ResNetDiscrminator
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
@@ -20,16 +21,29 @@ flags.DEFINE_integer('display_interval', 100, 'interval of displaying log to con
 flags.DEFINE_float('adam_alpha', 0.0001, 'learning rate')
 flags.DEFINE_float('adam_beta1', 0.0, 'beta1 in Adam')
 flags.DEFINE_float('adam_beta2', 0.9, 'beta2 in Adam')
-flags.DEFINE_integer('n_dis', 1, 'n discrminator train')
-
-mkdir('tmp')
+flags.DEFINE_integer('n_dis', 5, 'n discrminator train')
+flags.DEFINE_boolean('isResNet', False, '')
 
 INCEPTION_FILENAME = 'inception_score.pkl'
 FID_FILENAME = 'FID_score.pkl'
 config = FLAGS.flag_values_dict()
-generator = DCGANGenerator(**config)
-discriminator = SNDCGAN_Discrminator(**config)
 data_set = Cifar10(batch_size=FLAGS.batch_size)
+
+if FLAGS.isResNet is False:
+    tmp_dir = 'tmp'
+    snapshot_dir = 'snapshots'
+    generator = DCGANGenerator(**config)
+    discriminator = SNDCGAN_Discrminator(**config)
+else:
+    tmp_dir = 'resnet_tmp'
+    snapshot_dir = 'resnet_snapshots'
+    generator = ResNetGenerator(**config)
+    discriminator = ResNetDiscrminator(**config)
+
+INCEPTION_FILENAME = tmp_dir + '/' + INCEPTION_FILENAME
+FID_FILENAME = tmp_dir + '/' + FID_FILENAME
+
+mkdir(tmp_dir)
 
 global_step = tf.Variable(0, name="global_step", trainable=False)
 increase_global_step = global_step.assign(global_step + 1)
@@ -48,11 +62,11 @@ g_loss = -tf.reduce_mean(d_fake)
 d_loss_summary_op = tf.summary.scalar('d_loss', d_loss)
 g_loss_summary_op = tf.summary.scalar('g_loss', g_loss)
 merged_summary_op = tf.summary.merge_all()
-summary_writer = tf.summary.FileWriter('snapshots')
+summary_writer = tf.summary.FileWriter(snapshot_dir)
 
 d_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='critic')
 g_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='generator')
-d_optimizer = tf.train.AdamOptimizer(learning_rate=2.*FLAGS.adam_alpha, beta1=FLAGS.adam_beta1, beta2=FLAGS.adam_beta2)
+d_optimizer = tf.train.AdamOptimizer(learning_rate=4.*FLAGS.adam_alpha, beta1=FLAGS.adam_beta1, beta2=FLAGS.adam_beta2)
 g_optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.adam_alpha, beta1=FLAGS.adam_beta1, beta2=FLAGS.adam_beta2)
 d_gvs = d_optimizer.compute_gradients(d_loss, var_list=d_vars)
 g_gvs = g_optimizer.compute_gradients(g_loss, var_list=g_vars)
@@ -64,8 +78,8 @@ config.gpu_options.allow_growth = True
 sess = tf.Session(config=config)
 sess.run(tf.global_variables_initializer())
 saver = tf.train.Saver()
-if tf.train.latest_checkpoint('snapshots') is not None:
-    saver.restore(sess, tf.train.latest_checkpoint('snapshots'))
+if tf.train.latest_checkpoint(snapshot_dir) is not None:
+    saver.restore(sess, tf.train.latest_checkpoint(snapshot_dir))
 
 np.random.seed(1337)
 sample_noise = generator.generate_noise()
@@ -90,12 +104,12 @@ while iteration < FLAGS.max_iter:
         print('Iter {}: d_loss = {:4f}, g_loss = {:4f}, time = {:2f}s'.format(iteration, d_loss_curr, g_loss_curr, stop - start))
         start = stop
     if (iteration + 1) % FLAGS.snapshot_interval == 0 and not is_start_iteration:
-        saver.save(sess, 'snapshots/model.ckpt', global_step=iteration)
+        saver.save(sess, snapshot_dir+'/model.ckpt', global_step=iteration)
         sample_images = sess.run(x_hat, feed_dict={z: sample_noise, is_training: False})
-        save_images(sample_images, 'tmp/{:06d}.png'.format(iteration))
+        save_images(sample_images, tmp_dir+'/{:06d}.png'.format(iteration))
     if (iteration + 1) % FLAGS.evaluation_interval == 0:
         sample_images = sess.run(x_hat, feed_dict={z: sample_noise, is_training: False})
-        save_images(sample_images, 'tmp/{:06d}.png'.format(iteration))
+        save_images(sample_images, tmp_dir+'{:06d}.png'.format(iteration))
         # Sample 50000 images for evaluation
         print("Evaluating...")
         num_images_to_eval = 50000
